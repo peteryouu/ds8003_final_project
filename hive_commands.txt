@@ -1,0 +1,20 @@
+create database if not exists yahoo_finance;
+
+SHOW DATABASES;
+
+create table if not exists yahoo_finance.chart
+   (trading_date DATE,
+    ticker STRING,
+    open FLOAT,
+    high FLOAT,
+    low FLOAT,
+    close FLOAT,
+    volume BIGINT,
+    dividends FLOAT,
+    stock_splits INT)
+   ROW FORMAT DELIMITED
+   FIELDS TERMINATED BY ','
+   STORED AS TEXTFILE;
+
+DESCRIBE FORMATTED yahoo_finance.chart;
+
