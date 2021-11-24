@@ -12,8 +12,11 @@ ticker_list = ['MSFT', 'GOOG', 'AAPL', 'AMZN', 'TSLA', 'NFLX', 'GME', 'AMC']
 # The yfinance package has some convenience functions for this to download multiple tickers
 #  and group them, but this way we replicate what it would look like to actually
 #  hit the endpoint ourselves so it's easier if we want to change to that in the future
-cur_date = ''
 buffer = BytesIO()
+
+# If we want to do a historical pull for the tickers, we can set this to 365d or however long we want
+# PERIOD = '365d'
+PERIOD = '1d'
 for ticker in ticker_list:
     cur_ticker = yf.Ticker(ticker)
     hist = cur_ticker.history(period="1d")
