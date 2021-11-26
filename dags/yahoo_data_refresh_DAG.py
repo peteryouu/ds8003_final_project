@@ -6,58 +6,64 @@ from airflow.operators.python import PythonOperator, PythonVirtualenvOperator
 from airflow.sensors.weekday import DayOfWeekSensor
 
 
-def pull_finance_data_from_yahoo():
-    import os
-
+def pull_data_and_write_to_hive():
+    import datetime
     from io import BytesIO
 
+    import numpy as np
     import yfinance as yf
     from hdfs import InsecureClient
 
+    from hive_load import load_staging_to_hive
+
+    # Default to end today, start yesterday
+    DAYS_AGO_END = 0
+    DAYS_AGO_START = DAYS_AGO_END + 1
+
     # First let's pull down some data from yahoo, store it in memory, and then write it to a staging area in hdfs
-    ticker_list = ['MSFT', 'GOOG', 'AAPL', 'AMZN', 'TSLA', 'NFLX', 'GME', 'AMC']
+    ticker_list = ['MSFT']  # , 'GOOG', 'AAPL', 'AMZN', 'TSLA', 'NFLX', 'GME', 'AMC']
 
     # The yfinance package has some convenience functions for this to download multiple tickers
     #  and group them, but this way we replicate what it would look like to actually
     #  hit the endpoint ourselves so it's easier if we want to change to that in the future
-    cur_date = ''
     buffer = BytesIO()
-    for ticker in ticker_list:
-        cur_ticker = yf.Ticker(ticker)
-        hist = cur_ticker.history(period="1d")
 
-        # Add the ticker column into the data
-        hist.insert(0, 'Symbol', ticker)
+    # If we want to do a historical pull for the tickers, we can set this to 365d or however long we want
+    today_dt = datetime.datetime.today()
+    start_dt = today_dt - datetime.timedelta(days=DAYS_AGO_START)
+    end_dt = today_dt - datetime.timedelta(days=DAYS_AGO_END)
 
-        # Make sure to append here!
-        hist.to_csv(buffer, header=False, mode='a')
+    for days_after_start in range(DAYS_AGO_START - DAYS_AGO_END):
 
-        # Assume we are only pulling one date
-        cur_date = hist.index[0].strftime("%Y-%m-%d")
+        cur_start = (start_dt + datetime.timedelta(days=days_after_start)).strftime("%Y-%m-%d")
+        cur_end = (start_dt + datetime.timedelta(days=days_after_start) + datetime.timedelta(days=1)).strftime(
+            "%Y-%m-%d")
+        print(f"Processing data for trading_date={cur_start}")
 
-    client = InsecureClient(f'http://sandbox-hdp.hortonworks.com:50070')
-    with client.write(f'/tmp/yahoo_chart_staging/{cur_date}', overwrite=True) as writer:
-        writer.write(buffer.getvalue())
+        for ticker in ticker_list:
+            print(f"\tticker={ticker}")
+            cur_ticker = yf.Ticker(ticker)
+            hist = cur_ticker.history(period="max", interval="1h", start=cur_start, end=cur_end)
 
+            # Add the ticker column into the data
+            hist.insert(0, 'Symbol', ticker)
 
-def load_data_into_hive():
-    import paramiko
+            # Convert timestamps to unix ts
+            hist.index = hist.index.view(np.int64)
 
-    # Let's just ssh into the sandbox to execute hive commands. For a prod setup we'd probably need something more robust,
-    #  but for a demo this works just fine
-    ssh = paramiko.SSHClient()
+            # Make sure to append here!
+            hist.to_csv(buffer, header=False, mode='a')
 
-    # This is super not cool, but again, dev env so we'd do it properly in prod
-    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        print("\tWriting to hdfs ...")
+        client = InsecureClient('http://localhost:50070')
+        with client.write(f'/tmp/yahoo_chart_staging/trading_day={cur_start}.csv', overwrite=True) as writer:
+            writer.write(buffer.getvalue())
 
-    ssh.connect('sandbox-hdp.hortonworks.com', username='root', password='hdpsandbox', port=2222)
-
-    hive_load = """hive -e "LOAD DATA INPATH '/tmp/yahoo_chart_staging/' INTO TABLE yahoo_finance.chart" """
-    _, ssh_stdout, ssh_stderr = ssh.exec_command(hive_load)
-
-    # print gets sent to the airflow log, perfect
-    print(ssh_stdout.readlines())
-    print(ssh_stderr.readlines())
+        # Load the data to hive
+        print("\tLoading into Hive ...")
+        load_staging_to_hive(file_name=f'trading_day={cur_start}.csv',
+                             trading_date=cur_start,
+                             staging_folder='yahoo_chart_staging')
 
 
 default_args = {
@@ -76,15 +82,8 @@ with DAG(
     # Let's pull the data and write it to HDFS
     t1 = PythonVirtualenvOperator(
         task_id='pull_finance_data_from_yahoo',
-        python_callable=pull_finance_data_from_yahoo,
-        requirements=['yfinance==0.1.66', 'hdfs==2.6.0'],
+        python_callable=pull_data_and_write_to_hive,
+        requirements=['yfinance==0.1.66', 'hdfs==2.6.0', 'paramiko==2.8.0'],
     )
 
-    # Now write to hive table
-    t2 = PythonVirtualenvOperator(
-        task_id='load_data_into_hive',
-        python_callable=load_data_into_hive,
-        requirements=['paramiko==2.8.0'],
-    )
-
-    t1 >> t2
+    # We can add notification task here?
