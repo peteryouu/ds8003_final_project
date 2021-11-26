@@ -15,6 +15,6 @@ def load_staging_to_hive(file_name, trading_date, staging_folder='yahoo_chart_st
 
     hive_load = f"""hive -e "LOAD DATA INPATH '/tmp/{staging_folder}/{file_name}' OVERWRITE INTO TABLE yahoo_finance.chart partition (trading_date='{trading_date}')" """
     _, ssh_stdout, ssh_stderr = ssh.exec_command(hive_load)
-    print(f"Running hive load: {hive_load}")
-    # print(ssh_stdout.readlines())
-    # print(ssh_stderr.readlines())
+    # print(f"Running hive load: {hive_load}")
+    print(ssh_stdout.readlines())
+    print(ssh_stderr.readlines())
