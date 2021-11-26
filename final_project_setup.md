@@ -3,7 +3,7 @@
 1. Boot up the HDP Sandbox following the Lab 0 guide, [ssh](http://sandbox-hdp.hortonworks.com:4200)
    , [web](http://sandbox-hdp.hortonworks.com:8080/#/login)
 
-2. Install Apache Airflow
+2. Install Apache Airflow **On the host machine**
     1. Using [docker-compose](https://airflow.apache.org/docs/apache-airflow/stable/docker-compose.yaml). Note: (change
        airflow-webserver port to 11223:8080 to not conflict with HDP sandbox, you can disable example DAGs
        with `AIRFLOW__CORE__LOAD_EXAMPLES: 'false'`)
