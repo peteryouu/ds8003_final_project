@@ -3,7 +3,7 @@ create database if not exists yahoo_finance;
 SHOW DATABASES;
 
 create table if not exists yahoo_finance.chart
-   (trading_date DATE,
+   (trading_unix_timestamp BIGINT,
     ticker STRING,
     open FLOAT,
     high FLOAT,
@@ -12,6 +12,7 @@ create table if not exists yahoo_finance.chart
     volume BIGINT,
     dividends FLOAT,
     stock_splits INT)
+   partitioned by(trading_date STRING)
    ROW FORMAT DELIMITED
    FIELDS TERMINATED BY ','
    STORED AS TEXTFILE;
