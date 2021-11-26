@@ -35,7 +35,7 @@ for days_after_start in range(DAYS_AGO_START - DAYS_AGO_END):
     for ticker in ticker_list:
         print(f"\tticker={ticker}")
         cur_ticker = yf.Ticker(ticker)
-        hist = cur_ticker.history(period="max", interval="1h", start=cur_start, end=cur_end)
+        hist = cur_ticker.history(period="max", interval="1m", start=cur_start, end=cur_end)
 
         # Add the ticker column into the data
         hist.insert(0, 'Symbol', ticker)
